@@ -31,7 +31,10 @@ interface ProcessedFile {
 const bannerFormats: BannerFormat[] = [
   { name: 'Banner 600x500', width: 600, height: 500, aspectRatio: 1.2, useCase: 'Standard Square Banner' },
   { name: 'Banner 640x200', width: 640, height: 200, aspectRatio: 3.2, useCase: 'Horizontal Rectangular Banner' },
-  { name: 'Banner 728x90', width: 728, height: 90, aspectRatio: 8.09, useCase: 'Leaderboard Horizontal Banner' }
+  { name: 'Banner 728x90', width: 728, height: 90, aspectRatio: 8.09, useCase: 'Leaderboard Horizontal Banner' },
+  { name: 'Banner 420x200', width: 420, height: 200, aspectRatio: 2.1, useCase: 'Medium Horizontal Banner' },
+  { name: 'Banner 1100x361', width: 1100, height: 361, aspectRatio: 3.05, useCase: 'Large Header Banner' },
+  { name: 'Banner 630x250', width: 630, height: 250, aspectRatio: 2.52, useCase: 'Wide Content Banner' }
 ];
 
 const DropZone: React.FC<{
