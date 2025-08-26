@@ -1,11 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Download, CheckCircle, AlertCircle, Loader2, FileImage, Zap, Archive } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Slider } from '@/components/ui/slider';
-import { useToast } from '@/hooks/use-toast';
+import {
+  Button, Card, CardContent, CardHeader, Typography, Chip, LinearProgress, Slider,
+  Container, Grid, Box, Paper, Snackbar, Alert, CircularProgress
+} from '@mui/material';
+import {
+  UploadFile as UploadFileIcon,
+  Download as DownloadIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Image as ImageIcon,
+  Bolt as ZapIcon,
+  Archive as ArchiveIcon,
+} from '@mui/icons-material';
 import JSZip from 'jszip';
 
 const getFileExtension = (mimeType: string) => {
@@ -38,20 +44,20 @@ interface ProcessedFile {
 }
 
 const bannerFormats: BannerFormat[] = [
-  { name: 'Banner 600x500', width: 600, height: 500, aspectRatio: 1.2, useCase: 'Standard Square Banner' },
-  { name: 'Banner 640x200', width: 640, height: 200, aspectRatio: 3.2, useCase: 'Horizontal Rectangular Banner' },
-  { name: 'Banner 728x90', width: 728, height: 90, aspectRatio: 8.09, useCase: 'Leaderboard Horizontal Banner' },
-  { name: 'Banner 420x200', width: 420, height: 200, aspectRatio: 2.1, useCase: 'Medium Horizontal Banner' },
-  { name: 'Banner 1100x361', width: 1100, height: 361, aspectRatio: 3.05, useCase: 'Large Header Banner' },
-  { name: 'Banner 630x250', width: 630, height: 250, aspectRatio: 2.52, useCase: 'Wide Content Banner' }
+    { name: 'Banner 600x500', width: 600, height: 500, aspectRatio: 1.2, useCase: 'Standard Square Banner' },
+    { name: 'Banner 640x200', width: 640, height: 200, aspectRatio: 3.2, useCase: 'Horizontal Rectangular Banner' },
+    { name: 'Banner 728x90', width: 728, height: 90, aspectRatio: 8.09, useCase: 'Leaderboard Horizontal Banner' },
+    { name: 'Banner 420x200', width: 420, height: 200, aspectRatio: 2.1, useCase: 'Medium Horizontal Banner' },
+    { name: 'Banner 1100x361', width: 1100, height: 361, aspectRatio: 3.05, useCase: 'Large Header Banner' },
+    { name: 'Banner 630x250', width: 630, height: 250, aspectRatio: 2.52, useCase: 'Wide Content Banner' }
 ];
 
 const DropZone: React.FC<{
   onFilesSelected: (files: File[]) => void;
   isDragOver: boolean;
   setIsDragOver: (isDragOver: boolean) => void;
-}> = ({ onFilesSelected, isDragOver, setIsDragOver }) => {
-  const { toast } = useToast();
+  showToast: (message: string, severity: 'success' | 'error') => void;
+}> = ({ onFilesSelected, isDragOver, setIsDragOver, showToast }) => {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -59,11 +65,7 @@ const DropZone: React.FC<{
     
     const files = Array.from(e.dataTransfer.files).filter(file => {
       if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Invalid file",
-          description: `${file.name} is not an image file`,
-          variant: "destructive"
-        });
+        showToast(`${file.name} is not an image file`, 'error');
         return false;
       }
       return true;
@@ -72,7 +74,7 @@ const DropZone: React.FC<{
     if (files.length > 0) {
       onFilesSelected(files);
     }
-  }, [onFilesSelected, setIsDragOver, toast]);
+  }, [onFilesSelected, setIsDragOver, showToast]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -82,54 +84,48 @@ const DropZone: React.FC<{
   }, [onFilesSelected]);
 
   return (
-    <div
-      className={`relative border-2 border-dashed rounded-xl transition-all duration-300 ease-bounce ${
-        isDragOver 
-          ? 'border-primary bg-primary-muted scale-105 shadow-glow' 
-          : 'border-border bg-gradient-surface hover:border-primary/50 hover:shadow-md'
-      }`}
+    <Paper
+      variant="outlined"
       onDrop={handleDrop}
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
+      sx={{
+        p: 4,
+        textAlign: 'center',
+        borderStyle: 'dashed',
+        borderWidth: 2,
+        borderColor: isDragOver ? 'primary.main' : 'divider',
+        backgroundColor: isDragOver ? 'action.hover' : 'background.paper',
+        transition: 'all 0.3s ease',
+        transform: isDragOver ? 'scale(1.05)' : 'scale(1)',
+      }}
     >
-      <div className="p-12 text-center">
-        <div className={`mx-auto w-16 h-16 rounded-full bg-gradient-primary mb-6 flex items-center justify-center transition-transform duration-300 ${
-          isDragOver ? 'scale-110' : ''
-        }`}>
-          <Upload className="w-8 h-8 text-primary-foreground" />
-        </div>
-        
-        <h3 className="text-xl font-semibold mb-3 text-foreground">
-          Drop your images here
-        </h3>
-        <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-          Drag and drop your images or click to browse. We'll automatically optimize them for banner formats.
-        </p>
-        
-        <Button 
-          variant="outline" 
-          size="lg"
-          className="relative overflow-hidden"
-          onClick={() => document.getElementById('file-input')?.click()}
-        >
-          <FileImage className="w-5 h-5 mr-2" />
-          Choose Files
-        </Button>
-        
+      <UploadFileIcon sx={{ fontSize: 64, mb: 2, color: 'primary.main' }} />
+      <Typography variant="h5" component="h3" sx={{ mb: 1 }}>
+        Drop your images here
+      </Typography>
+      <Typography color="text.secondary" sx={{ mb: 2 }}>
+        Drag and drop your images or click to browse. We'll automatically optimize them for banner formats.
+      </Typography>
+      <Button
+        variant="contained"
+        component="label"
+        startIcon={<ImageIcon />}
+      >
+        Choose Files
         <input
           id="file-input"
           type="file"
           multiple
           accept="image/*"
-          className="hidden"
+          hidden
           onChange={handleFileInput}
         />
-        
-        <div className="mt-6 text-sm text-muted-foreground">
-          Supported formats: PNG, JPG, GIF, WebP, BMP
-        </div>
-      </div>
-    </div>
+      </Button>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+        Supported formats: PNG, JPG, GIF, WebP, BMP
+      </Typography>
+    </Paper>
   );
 };
 
@@ -139,64 +135,61 @@ const FileProcessor: React.FC<{ file: ProcessedFile }> = ({ file }) => {
   };
 
   return (
-    <Card className="transition-all duration-300 hover:shadow-md">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-            file.status === 'completed' ? 'bg-success text-success-foreground' :
-            file.status === 'error' ? 'bg-destructive text-destructive-foreground' :
-            'bg-primary text-primary-foreground'
-          }`}>
-            {file.status === 'completed' ? <CheckCircle className="w-5 h-5" /> :
-             file.status === 'error' ? <AlertCircle className="w-5 h-5" /> :
-             <Loader2 className="w-5 h-5 animate-spin" />}
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <p className="font-medium truncate">{file.originalFile.name}</p>
-            <p className="text-sm text-muted-foreground">
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Box sx={{
+            width: 40,
+            height: 40,
+            borderRadius: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'primary.contrastText',
+            bgcolor: file.status === 'completed' ? 'success.main' : file.status === 'error' ? 'error.main' : 'primary.main'
+          }}>
+            {file.status === 'completed' ? <CheckCircleIcon /> :
+             file.status === 'error' ? <ErrorIcon /> :
+             <CircularProgress size={24} color="inherit" />}
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography noWrap>{file.originalFile.name}</Typography>
+            <Typography variant="body2" color="text.secondary">
               {formatSize(file.originalSize)}
               {file.optimizedSize && ` → ${formatSize(file.optimizedSize)}`}
-            </p>
-          </div>
-          
+            </Typography>
+          </Box>
           {file.selectedFormat && (
-            <Badge variant="secondary" className="text-xs">
-              {file.selectedFormat.name}
-            </Badge>
+            <Chip label={file.selectedFormat.name} size="small" />
           )}
-        </div>
+        </Box>
         
         {file.status === 'processing' && (
-          <div className="space-y-2">
-            <Progress value={file.progress} className="h-2" />
-            <p className="text-sm text-muted-foreground">Processing... {file.progress}%</p>
-          </div>
+          <Box>
+            <LinearProgress variant="determinate" value={file.progress} />
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Processing... {file.progress}%</Typography>
+          </Box>
         )}
         
         {file.status === 'error' && (
-          <div className="bg-destructive-muted p-3 rounded-lg">
-            <p className="text-sm text-destructive-foreground">{file.errorMessage}</p>
-          </div>
+          <Alert severity="error">{file.errorMessage}</Alert>
         )}
         
         {file.status === 'completed' && file.optimizedBlob && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm text-success">
-              <Zap className="w-4 h-4" />
-              Optimized successfully
-            </div>
-            <Button 
-              size="sm" 
-              className="w-full bg-gradient-success hover:shadow-md transition-all duration-300"
+          <Box>
+            <Alert severity="success" icon={<ZapIcon />}>Optimized successfully</Alert>
+            <Button
+              fullWidth
+              variant="contained"
+              color="success"
+              startIcon={<DownloadIcon />}
+              sx={{ mt: 2 }}
               onClick={() => {
                 const url = URL.createObjectURL(file.optimizedBlob!);
                 const a = document.createElement('a');
                 a.href = url;
-
                 const extension = getFileExtension(file.optimizedBlob!.type);
                 const baseName = file.originalFile.name.substring(0, file.originalFile.name.lastIndexOf('.'));
-
                 a.download = `optimized_${file.selectedFormat?.name.toLowerCase().replace(/\s+/g, '_')}_${baseName}.${extension}`;
                 document.body.appendChild(a);
                 a.click();
@@ -204,68 +197,62 @@ const FileProcessor: React.FC<{ file: ProcessedFile }> = ({ file }) => {
                 URL.revokeObjectURL(url);
               }}
             >
-              <Download className="w-4 h-4 mr-2" />
               Download Optimized
             </Button>
-          </div>
+          </Box>
         )}
       </CardContent>
     </Card>
   );
 };
 
+const findBestFormat = (width: number, height: number): BannerFormat => {
+  const aspectRatio = width / height;
+  return bannerFormats.reduce((best, format) => {
+    const currentDiff = Math.abs(aspectRatio - format.aspectRatio);
+    const bestDiff = Math.abs(aspectRatio - best.aspectRatio);
+    return currentDiff < bestDiff ? format : best;
+  });
+};
+
 const BannerOptimizer: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [files, setFiles] = useState<ProcessedFile[]>([]);
-  const [compressionLevel, setCompressionLevel] = useState([85]);
-  const { toast } = useToast();
+  const [compressionLevel, setCompressionLevel] = useState(85);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
-  const findBestFormat = (width: number, height: number): BannerFormat => {
-    const aspectRatio = width / height;
-    return bannerFormats.reduce((best, format) => {
-      const currentDiff = Math.abs(aspectRatio - format.aspectRatio);
-      const bestDiff = Math.abs(aspectRatio - best.aspectRatio);
-      return currentDiff < bestDiff ? format : best;
-    });
-  };
+  const showToast = useCallback((message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
 
-  const optimizeImage = async (file: File, quality: number): Promise<{ blob: Blob; size: number; format: BannerFormat }> => {
+  const optimizeImage = useCallback(async (file: File, quality: number): Promise<{ blob: Blob; size: number; format: BannerFormat }> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
-      if (!ctx) {
-        reject(new Error('Canvas context not available'));
-        return;
-      }
+      if (!ctx) return reject(new Error('Canvas context not available'));
 
       img.onload = () => {
         const selectedFormat = findBestFormat(img.width, img.height);
-        
         canvas.width = selectedFormat.width;
         canvas.height = selectedFormat.height;
-        
-        // Draw image with high quality
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, selectedFormat.width, selectedFormat.height);
-        
         const outputType = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ? file.type : 'image/jpeg';
-
         canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error('Failed to create optimized blob'));
-            return;
-          }
+          if (!blob) return reject(new Error('Failed to create optimized blob'));
           resolve({ blob, size: blob.size, format: selectedFormat });
         }, outputType, quality / 100);
       };
-      
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = URL.createObjectURL(file);
     });
-  };
+  }, []);
 
   const processFiles = useCallback(async (newFiles: File[]) => {
     const processedFiles: ProcessedFile[] = newFiles.map(file => ({
@@ -280,71 +267,42 @@ const BannerOptimizer: React.FC = () => {
 
     for (const processedFile of processedFiles) {
       try {
-        // Simulate progress
         const progressInterval = setInterval(() => {
           setFiles(prev => prev.map(f => 
-            f.id === processedFile.id 
-              ? { ...f, progress: Math.min(f.progress + 10, 90) }
-              : f
+            f.id === processedFile.id ? { ...f, progress: Math.min(f.progress + 10, 90) } : f
           ));
         }, 200);
 
-        const result = await optimizeImage(processedFile.originalFile, compressionLevel[0]);
-        
+        const result = await optimizeImage(processedFile.originalFile, compressionLevel);
         clearInterval(progressInterval);
         
         setFiles(prev => prev.map(f => 
-          f.id === processedFile.id 
-            ? { 
-                ...f, 
-                status: 'completed' as const, 
-                progress: 100,
-                optimizedBlob: result.blob,
-                optimizedSize: result.size,
-                selectedFormat: result.format
-              }
-            : f
+          f.id === processedFile.id ? {
+            ...f, status: 'completed' as const, progress: 100,
+            optimizedBlob: result.blob, optimizedSize: result.size, selectedFormat: result.format
+          } : f
         ));
-
-        toast({
-          title: "Optimization complete",
-          description: `${processedFile.originalFile.name} optimized successfully`,
-        });
-
+        showToast(`${processedFile.originalFile.name} optimized successfully`, 'success');
       } catch (error) {
         setFiles(prev => prev.map(f => 
-          f.id === processedFile.id 
-            ? { 
-                ...f, 
-                status: 'error' as const, 
-                errorMessage: error instanceof Error ? error.message : 'Processing failed'
-              }
-            : f
+          f.id === processedFile.id ? {
+            ...f, status: 'error' as const,
+            errorMessage: error instanceof Error ? error.message : 'Processing failed'
+          } : f
         ));
-
-        toast({
-          title: "Optimization failed",
-          description: `Failed to process ${processedFile.originalFile.name}`,
-          variant: "destructive"
-        });
+        showToast(`Failed to process ${processedFile.originalFile.name}`, 'error');
       }
     }
-  }, [toast, compressionLevel]);
+  }, [compressionLevel, optimizeImage, showToast]);
 
   const downloadAllFiles = useCallback(async () => {
     const completedFiles = files.filter(f => f.status === 'completed' && f.optimizedBlob);
-    
     if (completedFiles.length === 0) {
-      toast({
-        title: "No hay archivos para descargar",
-        description: "Procesa algunas imágenes primero",
-        variant: "destructive"
-      });
+      showToast("No files to download. Process some images first.", 'error');
       return;
     }
 
     const zip = new JSZip();
-    
     for (const file of completedFiles) {
       if (file.optimizedBlob && file.selectedFormat) {
         const extension = getFileExtension(file.optimizedBlob.type);
@@ -364,128 +322,103 @@ const BannerOptimizer: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      toast({
-        title: "Descarga completada",
-        description: `Se descargaron ${completedFiles.length} archivos optimizados`,
-      });
+      showToast(`Downloaded ${completedFiles.length} optimized files`, 'success');
     } catch (error) {
-      toast({
-        title: "Error en la descarga",
-        description: "No se pudo crear el archivo ZIP",
-        variant: "destructive"
-      });
+      showToast("Could not create the ZIP file.", 'error');
     }
-  }, [files, toast]);
+  }, [files, showToast]);
 
   return (
-    <div className="min-h-screen bg-gradient-surface">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-3 bg-gradient-primary text-primary-foreground px-6 py-3 rounded-full mb-6 shadow-glow">
-            <Zap className="w-6 h-6" />
-            <span className="font-semibold">Banner Optimizer</span>
-          </div>
-          
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Optimize Images for Perfect Banners
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Upload your images and we'll automatically convert them to standard banner formats 
-            with optimized file sizes for web use.
-          </p>
-        </div>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Box sx={{ textAlign: 'center', mb: 8 }}>
+        <Chip icon={<ZapIcon />} label="Banner Optimizer" color="primary" sx={{ mb: 2 }} />
+        <Typography variant="h3" component="h1" gutterBottom>
+          Optimize Images for Perfect Banners
+        </Typography>
+        <Typography variant="h6" color="text.secondary" component="p" sx={{ maxWidth: 'md', mx: 'auto' }}>
+          Upload your images and we'll automatically convert them to standard banner formats
+          with optimized file sizes for web use.
+        </Typography>
+      </Box>
 
-        {/* Banner Formats Info */}
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          {bannerFormats.map((format) => (
-            <Card key={format.name} className="text-center hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">{format.name}</CardTitle>
-                <CardDescription className="text-xs">{format.useCase}</CardDescription>
-              </CardHeader>
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        {bannerFormats.map((format) => (
+          <Grid item xs={12} sm={6} md={4} key={format.name}>
+            <Card sx={{ textAlign: 'center' }}>
+              <CardHeader title={format.name} subheader={format.useCase} />
               <CardContent>
-                <div className="text-2xl font-bold text-primary mb-1">
-                  {format.width}×{format.height}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Ratio: {format.aspectRatio.toFixed(2)}:1
-                </div>
+                <Typography variant="h4" color="primary">{format.width}×{format.height}</Typography>
+                <Typography variant="body2" color="text.secondary">Ratio: {format.aspectRatio.toFixed(2)}:1</Typography>
               </CardContent>
             </Card>
-          ))}
-        </div>
+          </Grid>
+        ))}
+      </Grid>
 
-        {/* Compression Control */}
-        <div className="mb-8">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Control de Compresión</CardTitle>
-              <CardDescription>
-                Ajusta la calidad de compresión de las imágenes (mayor valor = mejor calidad, mayor tamaño)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Calidad: {compressionLevel[0]}%</span>
-                  <Badge variant="outline" className="text-xs">
-                    {compressionLevel[0] >= 90 ? 'Alta' : compressionLevel[0] >= 70 ? 'Media' : 'Baja'}
-                  </Badge>
-                </div>
-                <Slider
-                  value={compressionLevel}
-                  onValueChange={setCompressionLevel}
-                  max={95}
-                  min={10}
-                  step={5}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Menor tamaño</span>
-                  <span>Mayor calidad</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Drop Zone */}
-        <div className="mb-8">
-          <DropZone 
-            onFilesSelected={processFiles}
-            isDragOver={isDragOver}
-            setIsDragOver={setIsDragOver}
+      <Card sx={{ mb: 4 }}>
+        <CardHeader title="Compression Control" subheader="Adjust image quality (higher value = better quality, larger size)" />
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography>Quality: {compressionLevel}%</Typography>
+            <Chip label={compressionLevel >= 90 ? 'High' : compressionLevel >= 70 ? 'Medium' : 'Low'} variant="outlined" size="small" />
+          </Box>
+          <Slider
+            value={compressionLevel}
+            onChange={(_, value) => setCompressionLevel(value as number)}
+            min={10} max={95} step={5}
+            aria-labelledby="compression-slider"
           />
-        </div>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Typography variant="caption">Smaller Size</Typography>
+            <Typography variant="caption">Higher Quality</Typography>
+          </Box>
+        </CardContent>
+      </Card>
 
-        {/* Processing Files */}
-        {files.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">Procesando Archivos</h2>
-              {files.filter(f => f.status === 'completed').length > 1 && (
-                <Button 
-                  onClick={downloadAllFiles}
-                  variant="outline"
-                  size="sm"
-                  className="bg-gradient-primary text-primary-foreground hover:shadow-md"
-                >
-                  <Archive className="w-4 h-4 mr-2" />
-                  Descargar Todo ({files.filter(f => f.status === 'completed').length})
-                </Button>
-              )}
-            </div>
-            <div className="grid gap-4">
-              {files.map((file) => (
-                <FileProcessor key={file.id} file={file} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      <Box sx={{ mb: 4 }}>
+        <DropZone
+          onFilesSelected={processFiles}
+          isDragOver={isDragOver}
+          setIsDragOver={setIsDragOver}
+          showToast={showToast}
+        />
+      </Box>
+
+      {files.length > 0 && (
+        <Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5">Processing Files</Typography>
+            {files.filter(f => f.status === 'completed').length > 1 && (
+              <Button
+                onClick={downloadAllFiles}
+                variant="contained"
+                startIcon={<ArchiveIcon />}
+              >
+                Download All ({files.filter(f => f.status === 'completed').length})
+              </Button>
+            )}
+          </Box>
+          <Grid container spacing={2}>
+            {files.map((file) => (
+              <Grid item xs={12} key={file.id}>
+                <FileProcessor file={file} />
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Container>
   );
 };
 
