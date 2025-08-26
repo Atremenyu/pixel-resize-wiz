@@ -218,7 +218,6 @@ const findBestFormat = (width: number, height: number): BannerFormat => {
 const BannerOptimizer: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [files, setFiles] = useState<ProcessedFile[]>([]);
-  const [compressionLevel, setCompressionLevel] = useState(85);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -273,7 +272,7 @@ const BannerOptimizer: React.FC = () => {
           ));
         }, 200);
 
-        const result = await optimizeImage(processedFile.originalFile, compressionLevel);
+        const result = await optimizeImage(processedFile.originalFile, 90);
         clearInterval(progressInterval);
         
         setFiles(prev => prev.map(f => 
@@ -293,7 +292,7 @@ const BannerOptimizer: React.FC = () => {
         showToast(`Failed to process ${processedFile.originalFile.name}`, 'error');
       }
     }
-  }, [compressionLevel, optimizeImage, showToast]);
+  }, [optimizeImage, showToast]);
 
   const downloadAllFiles = useCallback(async () => {
     const completedFiles = files.filter(f => f.status === 'completed' && f.optimizedBlob);
@@ -354,26 +353,6 @@ const BannerOptimizer: React.FC = () => {
           </Grid>
         ))}
       </Grid>
-
-      <Card sx={{ mb: 4 }}>
-        <CardHeader title="Compression Control" subheader="Adjust image quality (higher value = better quality, larger size)" />
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography>Quality: {compressionLevel}%</Typography>
-            <Chip label={compressionLevel >= 90 ? 'High' : compressionLevel >= 70 ? 'Medium' : 'Low'} variant="outlined" size="small" />
-          </Box>
-          <Slider
-            value={compressionLevel}
-            onChange={(_, value) => setCompressionLevel(value as number)}
-            min={10} max={95} step={5}
-            aria-labelledby="compression-slider"
-          />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="caption">Smaller Size</Typography>
-            <Typography variant="caption">Higher Quality</Typography>
-          </Box>
-        </CardContent>
-      </Card>
 
       <Box sx={{ mb: 4 }}>
         <DropZone
