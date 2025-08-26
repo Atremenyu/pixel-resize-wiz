@@ -8,6 +8,15 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import JSZip from 'jszip';
 
+const getFileExtension = (mimeType: string) => {
+  switch (mimeType) {
+    case 'image/png': return 'png';
+    case 'image/webp': return 'webp';
+    case 'image/jpeg':
+    default: return 'jpeg';
+  }
+};
+
 interface BannerFormat {
   name: string;
   width: number;
@@ -184,7 +193,11 @@ const FileProcessor: React.FC<{ file: ProcessedFile }> = ({ file }) => {
                 const url = URL.createObjectURL(file.optimizedBlob!);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `optimized_${file.selectedFormat?.name.toLowerCase().replace(/\s+/g, '_')}_${file.originalFile.name}`;
+
+                const extension = getFileExtension(file.optimizedBlob!.type);
+                const baseName = file.originalFile.name.substring(0, file.originalFile.name.lastIndexOf('.'));
+
+                a.download = `optimized_${file.selectedFormat?.name.toLowerCase().replace(/\s+/g, '_')}_${baseName}.${extension}`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -238,13 +251,15 @@ const BannerOptimizer: React.FC = () => {
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, selectedFormat.width, selectedFormat.height);
         
+        const outputType = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ? file.type : 'image/jpeg';
+
         canvas.toBlob((blob) => {
           if (!blob) {
             reject(new Error('Failed to create optimized blob'));
             return;
           }
           resolve({ blob, size: blob.size, format: selectedFormat });
-        }, 'image/jpeg', quality / 100);
+        }, outputType, quality / 100);
       };
       
       img.onerror = () => reject(new Error('Failed to load image'));
@@ -332,7 +347,9 @@ const BannerOptimizer: React.FC = () => {
     
     for (const file of completedFiles) {
       if (file.optimizedBlob && file.selectedFormat) {
-        const filename = `optimized_${file.selectedFormat.name.toLowerCase().replace(/\s+/g, '_')}_${file.originalFile.name}`;
+        const extension = getFileExtension(file.optimizedBlob.type);
+        const baseName = file.originalFile.name.substring(0, file.originalFile.name.lastIndexOf('.'));
+        const filename = `optimized_${file.selectedFormat.name.toLowerCase().replace(/\s+/g, '_')}_${baseName}.${extension}`;
         zip.file(filename, file.optimizedBlob);
       }
     }
