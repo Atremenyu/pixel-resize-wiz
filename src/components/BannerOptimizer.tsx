@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   Button, Card, CardContent, CardHeader, Typography, Chip, LinearProgress, Slider,
-  Container, Grid, Box, Paper, Snackbar, Alert, CircularProgress
+  Container, Grid, Box, Paper, Snackbar, Alert, CircularProgress, TextField
 } from '@mui/material';
 import {
   UploadFile as UploadFileIcon,
@@ -34,13 +34,14 @@ interface BannerFormat {
 interface ProcessedFile {
   id: string;
   originalFile: File;
-  status: 'processing' | 'completed' | 'error';
+  status: 'queued' | 'processing' | 'completed' | 'error';
   progress: number;
   optimizedBlob?: Blob;
   originalSize: number;
   optimizedSize?: number;
   selectedFormat?: BannerFormat;
   errorMessage?: string;
+  outputFilename: string;
 }
 
 const bannerFormats: BannerFormat[] = [
@@ -129,7 +130,36 @@ const DropZone: React.FC<{
   );
 };
 
-const FileProcessor: React.FC<{ file: ProcessedFile }> = ({ file }) => {
+const getStatusIcon = (status: ProcessedFile['status']) => {
+    switch (status) {
+        case 'queued':
+            return <ImageIcon />;
+        case 'processing':
+            return <CircularProgress size={24} color="inherit" />;
+        case 'completed':
+            return <CheckCircleIcon />;
+        case 'error':
+            return <ErrorIcon />;
+    }
+};
+
+const getStatusColor = (status: ProcessedFile['status']) => {
+    switch (status) {
+        case 'queued':
+            return 'grey.500';
+        case 'processing':
+            return 'primary.main';
+        case 'completed':
+            return 'success.main';
+        case 'error':
+            return 'error.main';
+    }
+};
+
+const FileProcessor: React.FC<{
+  file: ProcessedFile;
+  onOutputFilenameChange: (fileId: string, newFilename: string) => void;
+}> = ({ file, onOutputFilenameChange }) => {
   const formatSize = (bytes: number) => {
     return (bytes / 1024).toFixed(1) + ' KB';
   };
@@ -146,11 +176,9 @@ const FileProcessor: React.FC<{ file: ProcessedFile }> = ({ file }) => {
             alignItems: 'center',
             justifyContent: 'center',
             color: 'primary.contrastText',
-            bgcolor: file.status === 'completed' ? 'success.main' : file.status === 'error' ? 'error.main' : 'primary.main'
+            bgcolor: getStatusColor(file.status)
           }}>
-            {file.status === 'completed' ? <CheckCircleIcon /> :
-             file.status === 'error' ? <ErrorIcon /> :
-             <CircularProgress size={24} color="inherit" />}
+            {getStatusIcon(file.status)}
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography noWrap>{file.originalFile.name}</Typography>
@@ -163,6 +191,23 @@ const FileProcessor: React.FC<{ file: ProcessedFile }> = ({ file }) => {
             <Chip label={file.selectedFormat.name} size="small" />
           )}
         </Box>
+
+        {file.status === 'queued' && (
+          <Box>
+            <TextField
+              fullWidth
+              label="Output Filename"
+              value={file.outputFilename}
+              onChange={(e) => onOutputFilenameChange(file.id, e.target.value)}
+              variant="outlined"
+              size="small"
+              sx={{ mb: 1 }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              Ready to be optimized.
+            </Typography>
+          </Box>
+        )}
         
         {file.status === 'processing' && (
           <Box>
@@ -188,9 +233,7 @@ const FileProcessor: React.FC<{ file: ProcessedFile }> = ({ file }) => {
                 const url = URL.createObjectURL(file.optimizedBlob!);
                 const a = document.createElement('a');
                 a.href = url;
-                const extension = getFileExtension(file.optimizedBlob!.type);
-                const baseName = file.originalFile.name.substring(0, file.originalFile.name.lastIndexOf('.'));
-                a.download = `optimized_${file.selectedFormat?.name.toLowerCase().replace(/\s+/g, '_')}_${baseName}.${extension}`;
+                a.download = file.outputFilename.toLowerCase();
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -253,46 +296,104 @@ const BannerOptimizer: React.FC = () => {
     });
   }, []);
 
-  const processFiles = useCallback(async (newFiles: File[]) => {
-    const processedFiles: ProcessedFile[] = newFiles.map(file => ({
+  const handleOutputFilenameChange = useCallback((fileId: string, newFilename: string) => {
+    setFiles(prev => prev.map(f =>
+      f.id === fileId
+        ? { ...f, outputFilename: newFilename }
+        : f
+    ));
+  }, []);
+
+  const addFilesToQueue = useCallback((newFiles: File[]) => {
+    const filesToQueue: ProcessedFile[] = newFiles.map(file => ({
       id: Math.random().toString(36),
       originalFile: file,
-      status: 'processing' as const,
+      status: 'queued' as const,
       progress: 0,
-      originalSize: file.size
+      originalSize: file.size,
+      outputFilename: 'Loading...'
     }));
 
-    setFiles(prev => [...prev, ...processedFiles]);
+    setFiles(prev => [...prev, ...filesToQueue]);
 
-    for (const processedFile of processedFiles) {
+    filesToQueue.forEach(fileToQueue => {
+      const img = new Image();
+      img.onload = () => {
+        const selectedFormat = findBestFormat(img.width, img.height);
+        const extension = getFileExtension(fileToQueue.originalFile.type);
+        const baseName = fileToQueue.originalFile.name.substring(0, fileToQueue.originalFile.name.lastIndexOf('.'));
+        const defaultFilename = `${baseName}_${selectedFormat.width}x${selectedFormat.height}.${extension}`.toLowerCase();
+
+        setFiles(prev => prev.map(f =>
+          f.id === fileToQueue.id
+            ? {
+                ...f,
+                selectedFormat: selectedFormat,
+                outputFilename: defaultFilename
+              }
+            : f
+        ));
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => {
+        setFiles(prev => prev.map(f =>
+          f.id === fileToQueue.id
+            ? { ...f, status: 'error', errorMessage: 'Failed to read image dimensions.' }
+            : f
+        ));
+        URL.revokeObjectURL(img.src);
+      };
+      img.src = URL.createObjectURL(fileToQueue.originalFile);
+    });
+  }, []);
+
+  const startAllProcessing = useCallback(async () => {
+    const filesToProcess = files.filter(f => f.status === 'queued');
+
+    setFiles(prev => prev.map(f =>
+      f.status === 'queued' ? { ...f, status: 'processing' } : f
+    ));
+
+    for (const fileToProcess of filesToProcess) {
       try {
         const progressInterval = setInterval(() => {
-          setFiles(prev => prev.map(f => 
-            f.id === processedFile.id ? { ...f, progress: Math.min(f.progress + 10, 90) } : f
+          setFiles(prev => prev.map(f =>
+            f.id === fileToProcess.id
+              ? { ...f, progress: Math.min(f.progress + 10, 90) }
+              : f
           ));
         }, 200);
 
-        const result = await optimizeImage(processedFile.originalFile, 90);
+        const result = await optimizeImage(fileToProcess.originalFile, 90);
         clearInterval(progressInterval);
-        
-        setFiles(prev => prev.map(f => 
-          f.id === processedFile.id ? {
-            ...f, status: 'completed' as const, progress: 100,
-            optimizedBlob: result.blob, optimizedSize: result.size, selectedFormat: result.format
-          } : f
+
+        setFiles(prev => prev.map(f =>
+          f.id === fileToProcess.id
+            ? {
+                ...f,
+                status: 'completed' as const,
+                progress: 100,
+                optimizedBlob: result.blob,
+                optimizedSize: result.size,
+                selectedFormat: result.format
+              }
+            : f
         ));
-        showToast(`${processedFile.originalFile.name} optimized successfully`, 'success');
+        showToast(`${fileToProcess.outputFilename} optimized successfully`, 'success');
       } catch (error) {
-        setFiles(prev => prev.map(f => 
-          f.id === processedFile.id ? {
-            ...f, status: 'error' as const,
-            errorMessage: error instanceof Error ? error.message : 'Processing failed'
-          } : f
+        setFiles(prev => prev.map(f =>
+          f.id === fileToProcess.id
+            ? {
+                ...f,
+                status: 'error' as const,
+                errorMessage: error instanceof Error ? error.message : 'Processing failed'
+              }
+            : f
         ));
-        showToast(`Failed to process ${processedFile.originalFile.name}`, 'error');
+        showToast(`Failed to process ${fileToProcess.outputFilename}`, 'error');
       }
     }
-  }, [optimizeImage, showToast]);
+  }, [files, optimizeImage, showToast]);
 
   const downloadAllFiles = useCallback(async () => {
     const completedFiles = files.filter(f => f.status === 'completed' && f.optimizedBlob);
@@ -304,10 +405,7 @@ const BannerOptimizer: React.FC = () => {
     const zip = new JSZip();
     for (const file of completedFiles) {
       if (file.optimizedBlob && file.selectedFormat) {
-        const extension = getFileExtension(file.optimizedBlob.type);
-        const baseName = file.originalFile.name.substring(0, file.originalFile.name.lastIndexOf('.'));
-        const filename = `optimized_${file.selectedFormat.name.toLowerCase().replace(/\s+/g, '_')}_${baseName}.${extension}`;
-        zip.file(filename, file.optimizedBlob);
+        zip.file(file.outputFilename.toLowerCase(), file.optimizedBlob);
       }
     }
 
@@ -356,7 +454,7 @@ const BannerOptimizer: React.FC = () => {
 
       <Box sx={{ mb: 4 }}>
         <DropZone
-          onFilesSelected={processFiles}
+          onFilesSelected={addFilesToQueue}
           isDragOver={isDragOver}
           setIsDragOver={setIsDragOver}
           showToast={showToast}
@@ -366,21 +464,36 @@ const BannerOptimizer: React.FC = () => {
       {files.length > 0 && (
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5">Processing Files</Typography>
-            {files.filter(f => f.status === 'completed').length > 1 && (
-              <Button
-                onClick={downloadAllFiles}
-                variant="contained"
-                startIcon={<ArchiveIcon />}
-              >
-                Download All ({files.filter(f => f.status === 'completed').length})
-              </Button>
-            )}
+            <Typography variant="h5">
+              {files.some(f => f.status === 'queued') ? 'Files Queue' : 'Processing Results'}
+            </Typography>
+            <Box>
+              {files.some(f => f.status === 'queued') && (
+                <Button
+                  onClick={startAllProcessing}
+                  variant="contained"
+                  color="primary"
+                  startIcon={<ZapIcon />}
+                >
+                  Optimize All ({files.filter(f => f.status === 'queued').length})
+                </Button>
+              )}
+              {files.filter(f => f.status === 'completed').length > 1 && (
+                <Button
+                  onClick={downloadAllFiles}
+                  variant="contained"
+                  startIcon={<ArchiveIcon />}
+                  sx={{ ml: 2 }}
+                >
+                  Download All ({files.filter(f => f.status === 'completed').length})
+                </Button>
+              )}
+            </Box>
           </Box>
           <Grid container spacing={2}>
             {files.map((file) => (
               <Grid item xs={12} key={file.id}>
-                <FileProcessor file={file} />
+                <FileProcessor file={file} onOutputFilenameChange={handleOutputFilenameChange} />
               </Grid>
             ))}
           </Grid>
