@@ -13,6 +13,7 @@ import {
   Archive as ArchiveIcon,
 } from '@mui/icons-material';
 import JSZip from 'jszip';
+import AdPlaceholder from './AdPlaceholder';
 
 const getFileExtension = (mimeType: string) => {
   switch (mimeType) {
@@ -426,7 +427,30 @@ const BannerOptimizer: React.FC = () => {
   }, [files, showToast]);
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 4, position: 'relative' }}>
+      {/* Anuncios Laterales (Escritorio) */}
+      <Box sx={{
+        display: { xs: 'none', xl: 'block' },
+        position: 'fixed',
+        left: '20px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        zIndex: 10
+      }}>
+        <AdPlaceholder type="vertical" label="Lateral Izquierdo" />
+      </Box>
+
+      <Box sx={{
+        display: { xs: 'none', xl: 'block' },
+        position: 'fixed',
+        right: '20px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        zIndex: 10
+      }}>
+        <AdPlaceholder type="vertical" label="Lateral Derecho" />
+      </Box>
+
       <Box sx={{ textAlign: 'center', mb: 8 }}>
         <Chip icon={<ZapIcon />} label="Banner Optimizer" color="primary" sx={{ mb: 2 }} />
         <Typography variant="h3" component="h1" gutterBottom>
@@ -436,6 +460,9 @@ const BannerOptimizer: React.FC = () => {
           Upload your images and we'll automatically convert them to standard banner formats
           with optimized file sizes for web use.
         </Typography>
+
+        {/* Anuncio Horizontal Superior (Móvil y Escritorio) */}
+        <AdPlaceholder type="horizontal" label="Superior" />
       </Box>
 
       <Grid container spacing={2} sx={{ mb: 4 }}>
@@ -499,6 +526,11 @@ const BannerOptimizer: React.FC = () => {
           </Grid>
         </Box>
       )}
+
+      {/* Anuncio Horizontal Inferior (Móvil y Escritorio) */}
+      <Box sx={{ mt: 8 }}>
+        <AdPlaceholder type="horizontal" label="Inferior" />
+      </Box>
 
       <Snackbar
         open={snackbar.open}
