@@ -1,5 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
+
+declare global {
+  interface Window {
+    adsbygoogle: any;
+  }
+}
 
 interface AdPlaceholderProps {
   type: 'vertical' | 'horizontal';
@@ -10,9 +16,17 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ type, label }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+  useEffect(() => {
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (e) {
+      console.error("AdSense error:", e);
+    }
+  }, []);
+
   const styles = {
     vertical: {
-      width: '160px',
+      width: '180px',
       height: '600px',
       display: isMobile ? 'none' : 'flex',
     },
@@ -47,30 +61,18 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ type, label }) => {
         }
       }}
     >
-      {/*
-          ZONA PARA CÓDIGO DE ADSENSE - {label}
-          Pega aquí el código <ins> de tu anuncio de Google AdSense.
-          Recuerda también incluir el script de AdSense en index.html si no lo has hecho.
-      */}
-      <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', p: 1 }}>
-        Espacio para anuncio {type === 'vertical' ? '160x600' : 'Horizontal'}
-        <br />
-        ({label})
-      </Typography>
+      <ins className="adsbygoogle"
+           style={{ display: 'block', width: '100%', height: '100%' }}
+           data-ad-client="ca-pub-8438097053505351"
+           data-ad-slot={type === 'vertical' ? "7635642545" : "7635642545"} // Usando el slot proveido por el usuario
+           data-ad-format={type === 'vertical' ? undefined : 'auto'}
+           data-full-width-responsive={type === 'vertical' ? "false" : "true"}></ins>
 
-      {/*
-          Ejemplo de integración (Descomenta y adapta cuando tengas tu código):
-
-          <ins className="adsbygoogle"
-               style={{ display: 'block' }}
-               data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
-               data-ad-slot="XXXXXXXXXX"
-               data-ad-format={type === 'vertical' ? 'vertical' : 'horizontal'}
-               data-full-width-responsive="true"></ins>
-          <script>
-               (adsbygoogle = window.adsbygoogle || []).push({});
-          </script>
-      */}
+      {!window.adsbygoogle && (
+        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', p: 1, position: 'absolute' }}>
+          Anuncio {label}
+        </Typography>
+      )}
     </Box>
   );
 };
