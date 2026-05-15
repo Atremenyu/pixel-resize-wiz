@@ -47,11 +47,14 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ type, label }) => {
         }
       }}
     >
-      {/*
-          ZONA PARA CÓDIGO DE ADSENSE - {label}
-          Pega aquí el código <ins> de tu anuncio de Google AdSense.
-          Recuerda también incluir el script de AdSense en index.html si no lo has hecho.
-      */}
+      {<!-- Lateral Izquierdo -->
+<ins class="adsbygoogle"
+     style="display:inline-block;width:180px;height:600px"
+     data-ad-client="ca-pub-8438097053505351"
+     data-ad-slot="7635642545"></ins>
+<script>
+     (adsbygoogle = window.adsbygoogle || []).push({});
+</script>}
       <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', p: 1 }}>
         Espacio para anuncio {type === 'vertical' ? '160x600' : 'Horizontal'}
         <br />
