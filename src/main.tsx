@@ -17,6 +17,15 @@ const theme = createTheme({
       paper: '#1e1e1e',
     },
   },
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 600,
+      md: 900,
+      lg: 1200,
+      xl: 1600, // Definimos XL para pantallas muy anchas donde caben anuncios laterales
+    },
+  },
 });
 
 createRoot(document.getElementById("root")!).render(
