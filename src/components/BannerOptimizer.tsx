@@ -46,12 +46,12 @@ interface ProcessedFile {
 }
 
 const bannerFormats: BannerFormat[] = [
-    { name: 'Banner 600x500', width: 600, height: 500, aspectRatio: 1.2, useCase: 'Standard Square Banner' },
-    { name: 'Banner 640x200', width: 640, height: 200, aspectRatio: 3.2, useCase: 'Horizontal Rectangular Banner' },
-    { name: 'Banner 728x90', width: 728, height: 90, aspectRatio: 8.09, useCase: 'Leaderboard Horizontal Banner' },
-    { name: 'Banner 420x200', width: 420, height: 200, aspectRatio: 2.1, useCase: 'Medium Horizontal Banner' },
-    { name: 'Banner 1100x361', width: 1100, height: 361, aspectRatio: 3.05, useCase: 'Large Header Banner' },
-    { name: 'Banner 630x250', width: 630, height: 250, aspectRatio: 2.52, useCase: 'Wide Content Banner' }
+    { name: 'Banner 600x500', width: 600, height: 500, aspectRatio: 1.2, useCase: 'Banner Cuadrado Estándar' },
+    { name: 'Banner 640x200', width: 640, height: 200, aspectRatio: 3.2, useCase: 'Banner Rectangular Horizontal' },
+    { name: 'Banner 728x90', width: 728, height: 90, aspectRatio: 8.09, useCase: 'Banner Leaderboard Horizontal' },
+    { name: 'Banner 420x200', width: 420, height: 200, aspectRatio: 2.1, useCase: 'Banner Horizontal Mediano' },
+    { name: 'Banner 1100x361', width: 1100, height: 361, aspectRatio: 3.05, useCase: 'Banner de Cabecera Grande' },
+    { name: 'Banner 630x250', width: 630, height: 250, aspectRatio: 2.52, useCase: 'Banner de Contenido Ancho' }
 ];
 
 const DropZone: React.FC<{
@@ -67,7 +67,7 @@ const DropZone: React.FC<{
     
     const files = Array.from(e.dataTransfer.files).filter(file => {
       if (!file.type.startsWith('image/')) {
-        showToast(`${file.name} is not an image file`, 'error');
+        showToast(`${file.name} no es un archivo de imagen`, 'error');
         return false;
       }
       return true;
@@ -104,17 +104,17 @@ const DropZone: React.FC<{
     >
       <UploadFileIcon sx={{ fontSize: 64, mb: 2, color: 'primary.main' }} />
       <Typography variant="h5" component="h3" sx={{ mb: 1 }}>
-        Drop your images here
+        Arrastra tus imágenes aquí
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Drag and drop your images or click to browse. We'll automatically optimize them for banner formats.
+        Arrastra y suelta tus imágenes o haz clic para buscar. Las optimizaremos automáticamente para formatos de banner.
       </Typography>
       <Button
         variant="contained"
         component="label"
         startIcon={<ImageIcon />}
       >
-        Choose Files
+        Seleccionar Archivos
         <input
           id="file-input"
           type="file"
@@ -125,7 +125,7 @@ const DropZone: React.FC<{
         />
       </Button>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        Supported formats: PNG, JPG, GIF, WebP, BMP
+        Formatos soportados: PNG, JPG, GIF, WebP, BMP
       </Typography>
     </Paper>
   );
@@ -197,7 +197,7 @@ const FileProcessor: React.FC<{
           <Box>
             <TextField
               fullWidth
-              label="Output Filename"
+              label="Nombre de archivo de salida"
               value={file.outputFilename}
               onChange={(e) => onOutputFilenameChange(file.id, e.target.value)}
               variant="outlined"
@@ -205,7 +205,7 @@ const FileProcessor: React.FC<{
               sx={{ mb: 1 }}
             />
             <Typography variant="caption" color="text.secondary">
-              Ready to be optimized.
+              Listo para ser optimizado.
             </Typography>
           </Box>
         )}
@@ -213,7 +213,7 @@ const FileProcessor: React.FC<{
         {file.status === 'processing' && (
           <Box>
             <LinearProgress variant="determinate" value={file.progress} />
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Processing... {file.progress}%</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Procesando... {file.progress}%</Typography>
           </Box>
         )}
         
@@ -223,7 +223,7 @@ const FileProcessor: React.FC<{
         
         {file.status === 'completed' && file.optimizedBlob && (
           <Box>
-            <Alert severity="success" icon={<ZapIcon />}>Optimized successfully</Alert>
+            <Alert severity="success" icon={<ZapIcon />}>Optimizado con éxito</Alert>
             <Button
               fullWidth
               variant="contained"
@@ -241,7 +241,7 @@ const FileProcessor: React.FC<{
                 URL.revokeObjectURL(url);
               }}
             >
-              Download Optimized
+              Descargar Optimizado
             </Button>
           </Box>
         )}
@@ -339,7 +339,7 @@ const BannerOptimizer: React.FC = () => {
       img.onerror = () => {
         setFiles(prev => prev.map(f =>
           f.id === fileToQueue.id
-            ? { ...f, status: 'error', errorMessage: 'Failed to read image dimensions.' }
+            ? { ...f, status: 'error', errorMessage: 'Error al leer las dimensiones de la imagen.' }
             : f
         ));
         URL.revokeObjectURL(img.src);
@@ -380,18 +380,18 @@ const BannerOptimizer: React.FC = () => {
               }
             : f
         ));
-        showToast(`${fileToProcess.outputFilename} optimized successfully`, 'success');
+      showToast(`${fileToProcess.outputFilename} optimizado con éxito`, 'success');
       } catch (error) {
         setFiles(prev => prev.map(f =>
           f.id === fileToProcess.id
             ? {
                 ...f,
                 status: 'error' as const,
-                errorMessage: error instanceof Error ? error.message : 'Processing failed'
+              errorMessage: error instanceof Error ? error.message : 'Error en el procesamiento'
               }
             : f
         ));
-        showToast(`Failed to process ${fileToProcess.outputFilename}`, 'error');
+      showToast(`Error al procesar ${fileToProcess.outputFilename}`, 'error');
       }
     }
   }, [files, optimizeImage, showToast]);
@@ -399,7 +399,7 @@ const BannerOptimizer: React.FC = () => {
   const downloadAllFiles = useCallback(async () => {
     const completedFiles = files.filter(f => f.status === 'completed' && f.optimizedBlob);
     if (completedFiles.length === 0) {
-      showToast("No files to download. Process some images first.", 'error');
+      showToast("No hay archivos para descargar. Procesa algunas imágenes primero.", 'error');
       return;
     }
 
@@ -415,14 +415,14 @@ const BannerOptimizer: React.FC = () => {
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `optimized_banners_${new Date().toISOString().split('T')[0]}.zip`;
+      a.download = `banners_optimizados_${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast(`Downloaded ${completedFiles.length} optimized files`, 'success');
+      showToast(`Se descargaron ${completedFiles.length} archivos optimizados`, 'success');
     } catch (error) {
-      showToast("Could not create the ZIP file.", 'error');
+      showToast("No se pudo crear el archivo ZIP.", 'error');
     }
   }, [files, showToast]);
 
@@ -454,11 +454,11 @@ const BannerOptimizer: React.FC = () => {
       <Box sx={{ textAlign: 'center', mb: 8 }}>
         <Chip icon={<ZapIcon />} label="Banner Optimizer" color="primary" sx={{ mb: 2 }} />
         <Typography variant="h3" component="h1" gutterBottom>
-          Optimize Images for Perfect Banners
+          Optimiza Imágenes para Banners Perfectos
         </Typography>
         <Typography variant="h6" color="text.secondary" component="p" sx={{ maxWidth: 'md', mx: 'auto' }}>
-          Upload your images and we'll automatically convert them to standard banner formats
-          with optimized file sizes for web use.
+          Sube tus imágenes y las convertiremos automáticamente a formatos de banner estándar
+          con tamaños de archivo optimizados para uso web.
         </Typography>
 
         {/* Anuncio Horizontal Superior (Móvil y Escritorio) */}
@@ -492,7 +492,7 @@ const BannerOptimizer: React.FC = () => {
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h5">
-              {files.some(f => f.status === 'queued') ? 'Files Queue' : 'Processing Results'}
+              {files.some(f => f.status === 'queued') ? 'Cola de Archivos' : 'Resultados del Procesamiento'}
             </Typography>
             <Box>
               {files.some(f => f.status === 'queued') && (
@@ -502,7 +502,7 @@ const BannerOptimizer: React.FC = () => {
                   color="primary"
                   startIcon={<ZapIcon />}
                 >
-                  Optimize All ({files.filter(f => f.status === 'queued').length})
+                  Optimizar Todo ({files.filter(f => f.status === 'queued').length})
                 </Button>
               )}
               {files.filter(f => f.status === 'completed').length > 1 && (
@@ -512,7 +512,7 @@ const BannerOptimizer: React.FC = () => {
                   startIcon={<ArchiveIcon />}
                   sx={{ ml: 2 }}
                 >
-                  Download All ({files.filter(f => f.status === 'completed').length})
+                  Descargar Todo ({files.filter(f => f.status === 'completed').length})
                 </Button>
               )}
             </Box>
@@ -526,6 +526,39 @@ const BannerOptimizer: React.FC = () => {
           </Grid>
         </Box>
       )}
+
+      {/* Sección informativa adicional para cumplimiento de AdSense */}
+      <Box sx={{ mt: 12, mb: 8 }}>
+        <Typography variant="h4" gutterBottom align="center" sx={{ mb: 4 }}>
+          ¿Cómo funciona Banner Optimizer?
+        </Typography>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 3, height: '100%', bgcolor: 'rgba(255, 255, 255, 0.03)' }}>
+              <Typography variant="h6" gutterBottom color="primary">Privacidad Total</Typography>
+              <Typography variant="body2" color="text.secondary">
+                A diferencia de otros optimizadores, tus imágenes nunca se suben a un servidor. Todo el procesamiento (redimensionamiento y compresión) ocurre localmente en tu navegador. Tus archivos privados permanecen privados.
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 3, height: '100%', bgcolor: 'rgba(255, 255, 255, 0.03)' }}>
+              <Typography variant="h6" gutterBottom color="primary">Formatos Inteligentes</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Nuestra herramienta detecta automáticamente la mejor relación de aspecto para tu imagen y te sugiere los formatos de banner más adecuados, desde leaderboards hasta rectángulos medianos, optimizando el espacio visual.
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 3, height: '100%', bgcolor: 'rgba(255, 255, 255, 0.03)' }}>
+              <Typography variant="h6" gutterBottom color="primary">Optimizado para Web</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Generamos archivos ligeros que cumplen con los estándares de velocidad de Google (Core Web Vitals). Mejora el SEO de tu sitio web reduciendo el tiempo de carga de tus elementos visuales sin perder calidad perceptible.
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      </Box>
 
       {/* Anuncio Horizontal Inferior (Móvil y Escritorio) */}
       <Box sx={{ mt: 8 }}>
