@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Button, Card, CardContent, Typography, Chip, LinearProgress,
   Container, Grid, Box, Paper, Snackbar, Alert, TextField,
   Tabs, Tab, Switch, FormControlLabel, Slider, IconButton,
-  Select, MenuItem, FormControl, InputLabel
+  Select, MenuItem, FormControl, InputLabel, Tooltip
 } from '@mui/material';
 import {
   UploadFile as UploadFileIcon,
@@ -12,7 +12,9 @@ import {
   Layers as LayersIcon,
   Bolt as ZapIcon,
   Delete as DeleteIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  ArrowUpward as ArrowUpwardIcon,
+  ArrowDownward as ArrowDownwardIcon
 } from '@mui/icons-material';
 import GIF from 'gif.js';
 import { GifReader } from 'omggif';
@@ -23,6 +25,12 @@ import gifsicle from '@fe-daily/gifsicle-wasm-browser';
 
 interface GifFrame {
   canvas: HTMLCanvasElement;
+  delay: number;
+}
+
+interface Layer {
+  file: File;
+  id: string;
   delay: number;
 }
 
@@ -44,13 +52,13 @@ interface ProcessedAnimation {
 const GifOptimizer: React.FC = () => {
   const [tab, setTab] = useState(0);
   const [files, setFiles] = useState<ProcessedAnimation[]>([]);
-  const [layers, setLayers] = useState<{file: File, id: string}[]>([]);
+  const [layers, setLayers] = useState<Layer[]>([]);
   const [globalDelay, setGlobalDelay] = useState(500);
   const [loop, setLoop] = useState(true);
   const [targetSizeKb, setTargetSizeKb] = useState(180);
-  const [gifQuality, setGifQuality] = useState(10); // gif.js quality (1-20)
+  const [gifQuality, setGifQuality] = useState(10);
   const [webpQuality, setWebpQuality] = useState(75);
-  const [selectedFormat, setSelectedFormat] = useState<BannerFormat>(bannerFormats[2]); // Default 728x90
+  const [selectedFormat, setSelectedFormat] = useState<BannerFormat>(bannerFormats[2]);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -67,7 +75,11 @@ const GifOptimizer: React.FC = () => {
   };
 
   const addLayers = (newFiles: File[]) => {
-    const newLayers = newFiles.map(file => ({ file, id: Math.random().toString(36).substring(2, 11) }));
+    const newLayers = newFiles.map(file => ({
+        file,
+        id: Math.random().toString(36).substring(2, 11),
+        delay: globalDelay
+    }));
     setLayers(prev => [...prev, ...newLayers]);
   };
 
@@ -75,8 +87,19 @@ const GifOptimizer: React.FC = () => {
     setLayers(prev => prev.filter(l => l.id !== id));
   };
 
-  // Helper to run optimization with Gifsicle
-  const optimizeWithGifsicle = async (inputBlob: Blob, targetFormat: BannerFormat): Promise<Blob> => {
+  const moveLayer = (index: number, direction: 'up' | 'down') => {
+    const newLayers = [...layers];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newLayers.length) return;
+    [newLayers[index], newLayers[targetIndex]] = [newLayers[targetIndex], newLayers[index]];
+    setLayers(newLayers);
+  };
+
+  const updateLayerDelay = (id: string, delay: number) => {
+    setLayers(prev => prev.map(l => l.id === id ? { ...l, delay } : l));
+  };
+
+  const optimizeWithGifsicle = async (inputBlob: Blob, targetFormat: BannerFormat, lossy: number = 30): Promise<Blob> => {
     try {
       const inputBuffer = await inputBlob.arrayBuffer();
       const results = await gifsicle.run({
@@ -85,13 +108,14 @@ const GifOptimizer: React.FC = () => {
           name: 'input.gif'
         }],
         command: [
-          `gifsicle --resize ${targetFormat.width}x${targetFormat.height} --optimize=3 --lossy=30 input.gif -o output.gif`
+          `gifsicle --resize ${targetFormat.width}x${targetFormat.height} --optimize=3 --lossy=${lossy} input.gif -o /out/optimized.gif`
         ],
         workerUrl: '/worker.js'
       });
 
       if (results && results.length > 0) {
-        return results[0] as Blob;
+        // results are File objects in @fe-daily/gifsicle-wasm-browser
+        return results[0];
       }
       return inputBlob;
     } catch (err) {
@@ -109,27 +133,34 @@ const GifOptimizer: React.FC = () => {
       status: 'processing',
       progress: 10,
       originalSize: file.size,
-      selectedFormat: bannerFormats[2], // Placeholder
+      selectedFormat: bannerFormats[2],
       outputFilename: file.name.replace(/\.[^/.]+$/, "")
     };
 
     setFiles(prev => [newAnim, ...prev]);
 
     try {
-        // First, detect dimensions to find best format
         const buffer = await file.arrayBuffer();
-        const gifReader = new GifReader(new Uint8Array(buffer) as Buffer);
+        const uint8 = new Uint8Array(buffer);
+        const gifReader = new GifReader(uint8 as any);
         const format = findBestFormat(gifReader.width, gifReader.height);
 
         setFiles(prev => prev.map(f => f.id === id ? { ...f, selectedFormat: format, progress: 20 } : f));
 
-        // Use Gifsicle to resize and optimize GIF
-        const optimizedGifBlob = await optimizeWithGifsicle(file, format);
+        let currentLossy = 30;
+        let optimizedGifBlob = await optimizeWithGifsicle(file, format, currentLossy);
 
-        // Extract frames for WebP generation
+        if (optimizedGifBlob.size > targetSizeKb * 1024) {
+            currentLossy = 60;
+            optimizedGifBlob = await optimizeWithGifsicle(file, format, currentLossy);
+        }
+
+        setFiles(prev => prev.map(f => f.id === id ? { ...f, progress: 50 } : f));
+
         const frames: GifFrame[] = [];
         const optBuffer = await optimizedGifBlob.arrayBuffer();
-        const optReader = new GifReader(new Uint8Array(optBuffer) as Buffer);
+        const optUint8 = new Uint8Array(optBuffer);
+        const optReader = new GifReader(optUint8 as any);
 
         for (let i = 0; i < optReader.numFrames(); i++) {
           const frameInfo = optReader.frameInfo(i);
@@ -177,7 +208,7 @@ const GifOptimizer: React.FC = () => {
           canvas.height = selectedFormat.height;
           const ctx = canvas.getContext('2d')!;
           ctx.drawImage(img, 0, 0, selectedFormat.width, selectedFormat.height);
-          frames.push({ canvas, delay: globalDelay });
+          frames.push({ canvas, delay: layer.delay });
           resolve();
         };
         img.onerror = reject;
@@ -187,8 +218,7 @@ const GifOptimizer: React.FC = () => {
       URL.revokeObjectURL(img.src);
     }
 
-    // Generate GIF using gif.js
-    const gifBlob = await new Promise<Blob>((resolve) => {
+    const initialGifBlob = await new Promise<Blob>((resolve) => {
         const gif = new GIF({
           workers: 2,
           quality: gifQuality,
@@ -203,7 +233,7 @@ const GifOptimizer: React.FC = () => {
         });
 
         gif.on('progress', (p) => {
-          setFiles(prev => prev.map(f => f.id === id ? { ...f, progress: Math.round(p * 50) } : f));
+          setFiles(prev => prev.map(f => f.id === id ? { ...f, progress: Math.round(p * 40) } : f));
         });
 
         gif.on('finished', (blob) => {
@@ -213,28 +243,35 @@ const GifOptimizer: React.FC = () => {
         gif.render();
       });
 
-    await renderWebP(id, frames, selectedFormat, gifBlob);
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, progress: 45 } : f));
+    const optimizedGifBlob = await optimizeWithGifsicle(initialGifBlob, selectedFormat, 35);
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, progress: 50 } : f));
+
+    await renderWebP(id, frames, selectedFormat, optimizedGifBlob);
   };
 
   const renderWebP = async (id: string, frames: GifFrame[], format: BannerFormat, gifBlob: Blob) => {
     try {
       setFiles(prev => prev.map(f => f.id === id ? { ...f, progress: 60 } : f));
 
-      const webpFrames = frames.map(f => {
-        const ctx = f.canvas.getContext('2d')!;
-        return {
-            data: ctx.getImageData(0, 0, format.width, format.height).data,
-            duration: f.delay,
-            config: {
-                lossless: 0,
-                quality: webpQuality
-            }
-        };
-      });
+      const renderSingleWebP = async (q: number) => {
+          const webpFrames = frames.map(f => {
+            const ctx = f.canvas.getContext('2d')!;
+            return {
+                data: ctx.getImageData(0, 0, format.width, format.height).data,
+                duration: f.delay,
+                config: { lossless: 0, quality: q }
+            };
+          });
+          const webpUint8 = await encodeAnimation(format.width, format.height, true, webpFrames as any);
+          return webpUint8 ? new Blob([webpUint8], { type: 'image/webp' }) : undefined;
+      };
 
-      // wasm-webp encodeAnimation takes (width, height, hasAlpha, frames)
-      const webpUint8 = await encodeAnimation(format.width, format.height, true, webpFrames as any);
-      const webpBlob = webpUint8 ? new Blob([webpUint8], { type: 'image/webp' }) : undefined;
+      let webpBlob = await renderSingleWebP(webpQuality);
+
+      if (webpBlob && webpBlob.size > targetSizeKb * 1024 && webpQuality > 20) {
+          webpBlob = await renderSingleWebP(Math.max(10, webpQuality - 30));
+      }
 
       setFiles(prev => prev.map(f => f.id === id ? {
         ...f,
@@ -248,11 +285,10 @@ const GifOptimizer: React.FC = () => {
       } : f));
 
       const isLarge = gifBlob.size > targetSizeKb * 1024 || (webpBlob && webpBlob.size > targetSizeKb * 1024);
-      showToast(isLarge ? 'Advertencia: El tamaño supera los 180KB' : 'Animación optimizada con éxito', isLarge ? 'error' : 'success');
+      showToast(isLarge ? 'Aviso: Algunos formatos exceden los 180KB' : 'Animación optimizada con éxito', isLarge ? 'error' : 'success');
 
     } catch (err) {
       console.error("WebP generation failed", err);
-      // Even if WebP fails, we might still have the GIF
       setFiles(prev => prev.map(f => f.id === id ? {
         ...f,
         status: 'completed',
@@ -311,45 +347,63 @@ const GifOptimizer: React.FC = () => {
                 />
               </Button>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                Sube un GIF para redimensionarlo a formato banner y optimizar su peso usando Gifsicle.
+                Sube un GIF para redimensionarlo a formato banner y optimizar su peso usando Gifsicle (WASM).
               </Typography>
             </Box>
           ) : (
             <Box>
               <Grid container spacing={4}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>Capas del Banner</Typography>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    startIcon={<UploadFileIcon />}
-                    fullWidth
-                    sx={{ mb: 2 }}
-                  >
-                    Añadir Imágenes (Frames)
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      hidden
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        addLayers(files);
-                      }}
-                    />
-                  </Button>
-                  <Box sx={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #eee', borderRadius: 1, p: 1 }}>
-                    {layers.length === 0 && <Typography color="text.secondary" align="center">No hay imágenes seleccionadas</Typography>}
+                <Grid item xs={12} md={7}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6">Capas del Banner</Typography>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      startIcon={<UploadFileIcon />}
+                      size="small"
+                    >
+                      Añadir Cuadros
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          addLayers(files);
+                        }}
+                      />
+                    </Button>
+                  </Box>
+                  <Box sx={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #eee', borderRadius: 1, p: 1 }}>
+                    {layers.length === 0 && <Typography color="text.secondary" align="center" sx={{ py: 4 }}>No hay imágenes seleccionadas</Typography>}
                     {layers.map((layer, index) => (
-                      <Card key={layer.id} sx={{ mb: 1, display: 'flex', alignItems: 'center', p: 0.5 }}>
-                        <Typography variant="body2" sx={{ flex: 1, ml: 1 }}>{index + 1}. {layer.file.name}</Typography>
-                        <IconButton size="small" color="error" onClick={() => removeLayer(layer.id)}><DeleteIcon /></IconButton>
+                      <Card key={layer.id} sx={{ mb: 1, display: 'flex', alignItems: 'center', p: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', minWidth: '25px' }}>{index + 1}.</Typography>
+                        <Box sx={{ flex: 1, minWidth: 0, mx: 1 }}>
+                            <Typography variant="body2" noWrap>{layer.file.name}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                <Typography variant="caption">Retraso:</Typography>
+                                <input
+                                    type="number"
+                                    value={layer.delay}
+                                    onChange={(e) => updateLayerDelay(layer.id, Number(e.target.value))}
+                                    style={{ width: '60px', fontSize: '12px' }}
+                                />
+                                <Typography variant="caption">ms</Typography>
+                            </Box>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <IconButton size="small" disabled={index === 0} onClick={() => moveLayer(index, 'up')}><ArrowUpwardIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" disabled={index === layers.length - 1} onClick={() => moveLayer(index, 'down')}><ArrowDownwardIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" color="error" onClick={() => removeLayer(layer.id)}><DeleteIcon fontSize="small" /></IconButton>
+                        </Box>
                       </Card>
                     ))}
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>Configuración</Typography>
+                <Grid item xs={12} md={5}>
+                  <Typography variant="h6" gutterBottom>Ajustes de Animación</Typography>
 
                   <FormControl fullWidth size="small" sx={{ mb: 2 }}>
                     <InputLabel>Formato de Banner</InputLabel>
@@ -368,12 +422,17 @@ const GifOptimizer: React.FC = () => {
                   </FormControl>
 
                   <TextField
-                    label="Retraso entre cuadros (ms)"
+                    label="Retraso global (ms)"
                     type="number"
                     fullWidth
                     size="small"
                     value={globalDelay}
-                    onChange={(e) => setGlobalDelay(Number(e.target.value))}
+                    onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setGlobalDelay(val);
+                        setLayers(prev => prev.map(l => ({ ...l, delay: val })));
+                    }}
+                    helperText="Afecta a todas las capas actuales"
                     sx={{ mb: 2 }}
                   />
                   <FormControlLabel
@@ -385,6 +444,8 @@ const GifOptimizer: React.FC = () => {
                     variant="contained"
                     fullWidth
                     size="large"
+                    color="primary"
+                    startIcon={<ZapIcon />}
                     onClick={createFromLayers}
                     disabled={layers.length < 2}
                   >
@@ -403,7 +464,9 @@ const GifOptimizer: React.FC = () => {
         </Typography>
         <Grid container spacing={4}>
           <Grid item xs={12} md={4}>
-            <Typography variant="body2" gutterBottom>Meta de tamaño máximo: {targetSizeKb} KB</Typography>
+            <Tooltip title="Intentaremos optimizar para no superar este tamaño">
+                <Typography variant="body2" gutterBottom>Meta de tamaño máximo: {targetSizeKb} KB</Typography>
+            </Tooltip>
             <Slider
               value={targetSizeKb}
               min={50}
